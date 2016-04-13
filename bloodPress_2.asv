@@ -1,0 +1,511 @@
+function  [Forecast_Systolic_pressure,Forecast_Diastolic_pressure,dingdian]=bloodPress_2(filename2)
+% clear all
+% clc
+% format long g
+
+% Forecast_Systolic_pressure         收缩压
+% Forecast_Diastolic_pressure       舒张压
+% dingdian                                     平均压        
+
+ 
+filename           = filename2 ;
+
+% filename= 'C:\Users\sunming\Desktop\王卓\1.txt'
+
+A                       =   textread(filename,'%d');
+
+len                    =   length(A);
+
+[max_y,max_x]  =  max(A);
+
+figure;
+
+plot(A) ;
+
+hold on；
+
+plot(max_x,max_y,'ro')
+
+hold on ;
+
+start=max_x;
+
+guaidianNum=1;
+
+guaidian=[max_x];
+
+for start=max_x:len-5                                    % 找脉搏波周期和个数
+    if((A(start+1)-A(start)>=1)&&(A(start+2)-A(start)>=1)&&(A(start+3)-A(start)>=2)&&(A(start+4)-A(start)>=2)&&(A(start+5)-A(start)>=3))   
+                                                                       % 上升点
+        if((start-guaidian(guaidianNum)>65))  %&&(start>200) %60以后可以尝试一下       %% 周期关系  
+            
+          guaidianNum=guaidianNum+1;     
+          
+          guaidian=[guaidian,start];                  % 找拐点
+          
+          plot(guaidian(guaidianNum),A(guaidian(guaidianNum)),'ro');
+          
+          hold on ;
+          
+        end
+       
+    end
+end 
+
+
+
+if(guaidianNum==1)
+    
+   Forecast_Systolic_pressure    =  0;
+   
+   Forecast_Diastolic_pressure  =  0;
+   
+   dingdian                                =  0;
+   
+   return
+   
+end
+    
+
+
+guaidian          =  guaidian(2:guaidianNum) ;                                    % 拐点个数
+
+guaidianNum  =  guaidianNum-1;  
+
+
+maibobo_y      =  [];
+
+yali                  =  [];
+
+for i=1:guaidianNum-1
+    
+    plotX       = [guaidian(i+1),guaidian(i)];
+    
+    plotY       = [A(guaidian(i+1)),A(guaidian(i))];
+    
+    xishu       = polyfit(plotX,plotY,1);
+    
+    py2          = polyval(xishu,guaidian(i):guaidian(i+1));              % 拟合值
+    
+    temp        = A(guaidian(i):guaidian(i+1))-py2';                       % 拟合差值
+    
+    temp        = temp(2:length(temp));
+    
+    py2           = py2(2:length(py2));
+    
+    yali            = [yali,py2];                                                           % 拟合值 
+    
+   maibobo_y = [maibobo_y;temp];                                           % 脉搏波  （拟合差值） 
+    
+end
+
+
+maibobo_x    =  guaidian(1):guaidian(1)+length(maibobo_y)-1;
+
+plot(maibobo_x,maibobo_y'*10);                                              % 差值
+
+
+hold on ;
+
+
+yali_x                =  max_x:len ;
+
+yali_y_front      =  A(max_x:guaidian(1))  ;                             %  第一个拐点
+
+yali_y_behind  =  A(guaidian(guaidianNum)+1:len) ;           % 最后一个拐点
+
+yali_y               =   [yali_y_front',yali]; 
+
+yali_y               =  [yali_y,yali_y_behind'];                               % 中间改成拟合值
+
+
+% plot(yali_x,yali_y)
+
+plot(yali_x,yali_y-100) ;                                                           % 100 不确定（画图方便）
+
+dlmwrite('C:\Users\sunming\Desktop\ABI\5.txt',yali_y,'delimiter', '\n','precision','%d') ;
+
+dlmwrite('C:\Users\sunming\Desktop\ABI\6.txt',A(max_x:len),'delimiter', '\n','precision','%d') ;
+
+hold on ;
+
+[maibobo_max_y,maibobo_max_x]    =  max(maibobo_y) ;                %拟合差值最大值坐标  （脉搏波最大值（平均压））
+
+plot(maibobo_x(maibobo_max_x),maibobo_max_y*10,'ro');  
+
+%分析数据的获得过程，看是否是减了100的原因text(maibobo_x,maibobo_y','x:y:')
+
+hold on  ;
+
+Systolic_pressure  = 100  ;                                    %收缩压     默认值    
+
+Diastolic_pressure = 90  ;                                     %舒张压     默认值
+
+
+
+    for index=1:len-max_x+1                                                                                                          % 从最大横纵坐标开始找，直到data2数据结束
+        
+        if((Systolic_pressure*10<=yali_y(index))&&(Systolic_pressure*10>=yali_y(index+1)))       % 循环进行判断，获得收缩压对应的横坐标的值
+            
+             if((Systolic_pressure*10-yali_y(index+1))>=(yali_y(index)-Systolic_pressure*10))
+                 
+                    Systolic_pressure_X_index  = index;                                                                          % 收缩压横坐标  
+                    
+             else
+                    Systolic_pressure_X_index  = index+1;                    
+             end
+             break;
+        end
+    end
+    
+    
+    
+%     Systolic_pressure_Y=maibobo_y(Systolic_pressure_X_index);
+
+%     Systolic_pressure_xishu=Systolic_pressure_Y/maibobo_max_y;
+
+    for index=1:len-max_x+1                                                                                                           %   从最大横纵坐标开始找，直到data2数据结束
+       
+        if((Diastolic_pressure*10<=yali_y(index))&&(Diastolic_pressure*10>=yali_y(index+1)))     %   循环进行判断，获得舒张压对应的横坐标的值  %压力值小于70就会出现测量不出来的情况
+           
+            if((Diastolic_pressure*10-yali_y(index+1))>=(yali_y(index)-Diastolic_pressure*10))
+                   
+                 Diastolic_pressure_X_index      =  index;                                                                        % 舒张压横坐标                                                                         
+                 
+             else
+                 
+                    Diastolic_pressure_X_index   =  index+1;                                                               
+                    
+             end
+             
+             break;
+             
+        end
+        
+    end
+    
+    
+%     Diastolic_pressure_Y=maibobo_y(Diastolic_pressure_X_index);
+%     Diastolic_pressure_xishu=Diastolic_pressure_Y/maibobo_max_y;   
+%     plot(maibobo_x(Systolic_pressure_X_index),Systolic_pressure_Y*10,'ro');
+%     plot(maibobo_x(Diastolic_pressure_X_index),Diastolic_pressure_Y*10,'ro');
+%     hold on
+    
+%     plot(yali_x(Systolic_pressure_X_index),yali_y(Systolic_pressure_X_index)-100,'+b',yali_x(Diastolic_pressure_X_index),yali_y(Diastolic_pressure_X_index)-100,'b+')
+  
+    plot(maibobo_x(maibobo_max_x),yali_y(maibobo_max_x+guaidian(1)-max_x+1)-100,'ro');         %拟合差值最大值坐标
+    
+    
+    c                =  [num2str(yali_y(maibobo_max_x+guaidian(1)-max_x+1))];                                       %%？？maibobo_max_x+guaidian(1)-max_x?？    %%
+    
+    
+    dingdian   =  yali_y(maibobo_max_x+guaidian(1)-max_x+1);                                                           %收缩压
+    
+    
+    text(maibobo_x(maibobo_max_x),yali_y(maibobo_max_x+guaidian(1)-max_x+1)+100,c);
+    
+    
+    
+   if((dingdian<700)&&(dingdian>300))
+       
+       Forecast_Systolic_pressure    =  dingdian+300;
+       
+       Forecast_Diastolic_pressure   =  dingdian-100;  
+       
+       return ;
+       
+   end
+  
+   
+    hold on ;
+    
+    
+%     Forecast_Systolic_pressure= yali_y(maibobo_max_x+guaidian(1)-max_x+1)*Systolic_pressure_xishu;
+%     Forecast_Diastolic_pressure= yali_y(maibobo_max_x+guaidian(1)-max_x+1)*Diastolic_pressure_xishu;
+    
+%     value=yali_y(maibobo_max_x+guaidian(1)-max_x+1)
+    %Forecast_Diastolic_pressure=
+
+    
+    
+    
+%把收缩压和舒张压对应上来，输出一个系数，然后测量得到血压。求得系数后，用系数对应上去，得到纵坐标，用纵坐标得到值。
+
+   figure ；
+   
+   plot(maibobo_x,maibobo_y') ;                                                               % 脉搏波  （拟合差值）   
+
+   hold on ;  
+   
+   jizhidian   = []  ;
+   
+   
+   last         = -50;
+   
+   num       = 0; 
+   
+   for i=62:length(maibobo_x)-11
+                                                                                                                 %%%找凸点
+       if((maibobo_y(i)>maibobo_y(i-1))&&(maibobo_y(i)>maibobo_y(i-2))&&(maibobo_y(i)>maibobo_y(i-3))&&(maibobo_y(i)>maibobo_y(i-4))&&(maibobo_y(i)>maibobo_y(i-5))&&(maibobo_y(i)>maibobo_y(i-6))&&(maibobo_y(i)>maibobo_y(i-7))&&(maibobo_y(i)>maibobo_y(i-8))&&(maibobo_y(i)>maibobo_y(i-9))&&(maibobo_y(i)>maibobo_y(i-10))&&(maibobo_y(i)>maibobo_y(i-11))&&(maibobo_y(i)>maibobo_y(i+1))&&(maibobo_y(i)>maibobo_y(i+2))&&(maibobo_y(i)>maibobo_y(i+3))&&(maibobo_y(i)>maibobo_y(i+4))&&(maibobo_y(i)>maibobo_y(i+5))&&(maibobo_y(i)>maibobo_y(i+6))&&(maibobo_y(i)>maibobo_y(i+7))&&(maibobo_y(i)>maibobo_y(i+8))&&(maibobo_y(i)>maibobo_y(i+9))&&(maibobo_y(i)>maibobo_y(i+10))&&(maibobo_y(i)>maibobo_y(i+11)))
+          
+           if(i-last>50)
+               
+           last          =  i  ;            
+           
+           jizhidian  = [jizhidian,i] ;                                                              %%找凸点横坐标       
+           
+           num        = num+1;
+           
+           else
+               if(maibobo_y(i)>maibobo_y(last))
+                   
+                    jizhidian(num)  =  i;
+                    
+                    last                   = i;
+               end
+               
+           end
+           
+       end
+       
+   end
+   
+   
+   
+   if((length(jizhidian)<1)||(jizhidian(length(jizhidian))<=maibobo_max_x))
+       
+      Forecast_Systolic_pressure    =  0;
+      Forecast_Diastolic_pressure   = 0;
+      dingdian                                 = 0;
+    
+      return 
+       
+   end
+   
+   
+   
+   
+   Correct_jizhidian   =   jizhidian(1);
+   left_count              =  0;
+   right_count           =  0;
+   
+   
+   
+   for i=1:length(jizhidian)-1
+%       if((maibobo_y(jizhidian(i+1))>maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))+10)&&(maibobo_y(jizhidian(i+1))>maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))*3))
+%           continue;
+%       end
+      if(jizhidian(i)<=maibobo_max_x)                                                                           %%左侧
+          
+          if(maibobo_y(jizhidian(i+1))>maibobo_y(jizhidian(i))&&(maibobo_y(jizhidian(i+1))>maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))))
+              
+             if((jizhidian(i+1)<Correct_jizhidian(length(Correct_jizhidian))+2000))          %最初为1000，因为20151208143351(血压模拟-02).txt出错，改为2000，能不能这样改，还需研究                      
+                                                                                                                                     %2000点间隔？%
+                 if((maibobo_y(jizhidian(i+1))<maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))+10)||(maibobo_y(jizhidian(i+1))<maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))*3)||(i<=1)||(maibobo_y(jizhidian(i+1))<maibobo_y(jizhidian(i+2))*1.2))   %处世的i《=1 可以换成i小于等于5
+
+                  Correct_jizhidian   =   [Correct_jizhidian,jizhidian(i+1)]  ;                         %%二次筛选
+                  
+                  left_count             =    left_count+1;
+                  
+                 end
+                 
+             end
+             
+          end
+          
+      end
+      
+      
+      
+      
+      
+      if(jizhidian(i)>=maibobo_max_x)                                                                          %%左侧
+          
+          if(maibobo_y(jizhidian(i+1))<maibobo_y(jizhidian(i))&&(maibobo_y(jizhidian(i+1))<maibobo_y(Correct_jizhidian(length(Correct_jizhidian)))))
+            
+              if(jizhidian(i+1)<Correct_jizhidian(length(Correct_jizhidian))+2000)           %最初为1000，因为20151208143351(血压模拟-02).txt出错，改为2000，能不能这样改，还需研究    
+                                                                                                                                    
+                  Correct_jizhidian   =    [Correct_jizhidian,jizhidian(i+1)]   ;
+                  
+                 right_count            =    right_count+1;                                                       %%二次筛选       
+              end
+              
+          end
+          
+      end
+      
+         
+   end 
+   
+   
+   
+   
+   jizhidian      =    Correct_jizhidian;                                                                    %%正确的极值点                                                    
+         
+   plot(maibobo_x(jizhidian),maibobo_y(jizhidian),'ro')
+ 
+   hold on  ;
+   
+   
+   
+    maibobo_PlotX   =   maibobo_x(jizhidian)       ;                                       
+    
+    maibobo_PlotY   =   maibobo_y(jizhidian)'      ;
+    
+    if((right_count>left_count)&&(left_count>=2))
+        
+        maibobo_PlotX   = maibobo_PlotX(1:left_count*2+2);
+        
+        maibobo_PlotY   = maibobo_PlotY(1:left_count*2+2);
+        
+%     else
+%         maibobo_PlotX=maibobo_PlotX(length(maibobo_PlotX)-right_count*2+1:length(maibobo_PlotX));
+%         maibobo_PlotY=maibobo_PlotY(length(maibobo_PlotY)-right_count*2+1:length(maibobo_PlotY));
+%         之所以不加上面这段，使得在左边小于右边的时候，也进行截取，是为了在低压的时候右边本就已经很小，然后按照很小的截取左边，那么整体的数据量就很少。而高压之所以按照左边的量来截取右边，因为加压升的很高，左边的量够，然后右边的量一定会富余。所以截取右边。如果需要加上这段，需要右边量富余，也就是降压的下限要改低才行。
+    end   
+    
+    
+    
+    
+    
+
+%    fid = fopen('x.txt','wt');
+%    fprintf(fid,'%d,',maibobo_PlotX);
+%    fclose(fid);
+%    
+%    fid = fopen('y.txt','wt');
+%    fprintf(fid,'%.2f,',maibobo_PlotY);
+%    fclose(fid);
+%     
+%     if((Systolic_pressure_X_index>length(maibobo_x)+guaidian(1))||(Diastolic_pressure_X_index>length(maibobo_x)+guaidian(1)))
+%           Forecast_Systolic_pressure=0;
+%           Forecast_Diastolic_pressure=0;
+%           dingdian=0;
+%           return   
+%     end                                                                                                                                                                    %极值点拟合  
+    fit_xishu_3     =   polyfit(maibobo_PlotX,maibobo_PlotY,3);                                                                                 %获得三次多项式拟合的系数
+  
+    three_value   =  polyval(fit_xishu_3,maibobo_PlotX);                                                                                           %根据这些系数确定三次拟合的方程，将plotX代入进去，获得理论的值
+
+    %     py4=polyval(fit_xishu_3,[maibobo_x(Systolic_pressure_X_index-guaidian(1)+1),maibobo_x(Diastolic_pressure_X_index-guaidian(1)+1)]);    %将收缩压和舒张压的横坐标代入方程计算，获得对应的y值
+    syms x;
+    
+    f                     =  -(fit_xishu_3(1)*x^3+ fit_xishu_3(2)*x^2+ fit_xishu_3(3)*x+ fit_xishu_3(4));                             %确定拟合多项式的系数方程
+    
+    f                    =   char(f);                                                                                                                                         %将这个f对象进行字符串化，为了进行fminbnd的值
+                                                                                        %%寻找局部最小值
+    [x_index,fval]= fminbnd(f,maibobo_PlotX(1) ,maibobo_PlotX(length(maibobo_PlotX)));                                    %maibobo_PlotX(1) %将拟合后的公式从plotX(1)到plotX(length(plotX))这个区间段求最小值及最小值的横坐标
+   
+    fval               = abs(fval);                                                                                                                                         %将fval的最小值绝对值后，就是求的最大值
+%     
+%      format bank
+     plot(maibobo_PlotX,three_value,'b',x_index,fval,'mo') ;                                                                                       %,maibobo_x(Systolic_pressure_X_index),py4(1),'bo',maibobo_x(Diastolic_pressure_X_index),py4(2),'bo');  %将最高点的数据，收缩压，舒张压队对应点的数据，在拟合方程上面标出来
+   
+     hold on  ;
+     
+%      plot(,Systolic_pressure_X_index,Systolic_pressure,'ro',Diastolic_pressure_X_index,Diastolic_pressure,'ro')
+%     average=mean(plotY);                                                              %求Y的平均值
+%     TSS=sum((plotY-average).^2);                                                  %总体平方和
+%     RSS=sum((py2-average).^2);                                                    %回归平方和
+%     ESS=sum((py2-plotY).^2);                                                        %残差平方和 总体=回归+残差
+%     RSquares=1-ESS/TSS;                                                              %R平方和，用R平方和来判断拟合效果的好坏
+    
+    temp3     =     maibobo_max_y;
+    
+    if(temp3*0.7>fval)
+       temp3   =   fval;                                                                                       %(temp3+fval)/2
+    end
+    
+%     Systolic_pressure_xishu=py4(1)/temp3;                                                %获得收缩压与最高点的比值
+%     Diastolic_pressure_xishu=py4(2)/temp3;                                               %获得舒张压与最高点的比值
+    temp4   =  temp3;
+    
+%     y=[Systolic_pressure_xishu*fval,Diastolic_pressure_xishu*fval];
+%     t=solve('fit_xishu_3(1)*t^3+ fit_xishu_3(2)*t^2+ fit_xishu_3(3)*t+ fit_xishu_3(4)-y=0','t')%变成x的函数
+%     
+%     t=eval(t)%计算x
+%     plot(t(1,1),y(1),'+k',t(2,1),y(1),'+k',t(3,1),y(1),'+k',t(1,2),y(2),'+k',t(2,2),y(2),'+k',t(3,2),y(2))  
+   fun = @(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.55*temp3) ;    %Systolic_pressure_xishu  0.620462298860544  fval maibobo_max_y
+ 
+   x1  =  fzero(fun,[x_index*0.8])  ;    % ,three_value(2)                                                                               %0.7配上不滤波的还可以，现在已经滤波了，0.7不能用了     
+    
+%    if(x1(1)<maibobo_PlotX(2))
+%       fun=@(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.70*temp3)    %Systolic_pressure_xishu  0.620462298860544  fval maibobo_max_y
+%       x1=fzero(fun,[x_index*0.8])   %,three_value(5)
+%    end
+%    
+%    if(x1(1)>maibobo_x(maibobo_max_x))
+%       fun=@(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.70*temp3)    %Systolic_pressure_xishu  0.620462298860544  fval maibobo_max_y
+%       x1=fzero(fun,[x_index*0.8])    %,three_value(1) %maibobo_PlotX(1)
+%    end
+   
+%    temp3=maibobo_max_y;
+%    if(temp3*0.9>fval)
+%        temp3=fval; 
+%    end
+   temp3   =   fval;
+    
+   fun2   =  @(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.75*temp3)  ; %Diastolic_pressure_xishu  0.828117099096032   %0.9
+   x2      =   fzero(fun2,[x_index*1.3]) ;  %,three_value(length(maibobo_PlotX)-4)    %0.6配上不滤波的还可以，现在已经滤波了，0.7不能用了       以前用的0.6       %1.1
+%    if((x2(1)-max_x>length(yali_y))||(x2(1)>maibobo_PlotX(length(maibobo_PlotX))))
+%        fun2=@(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.9*temp3)   %Diastolic_pressure_xishu  0.828117099096032
+%        x2=fzero(fun2,[x_index*1.1])    % ,three_value(length(maibobo_PlotX)-8)   maibobo_PlotX(length(maibobo_PlotX)-8)
+%    end
+%    
+%   if((x2(1)<maibobo_x(maibobo_max_x))&&(x2(1)<x_index))
+%       fun=@(x)(fit_xishu_3(1)*x.^3+ fit_xishu_3(2)*x.^2+ fit_xishu_3(3)*x+ fit_xishu_3(4)-0.9*temp3)    %Systolic_pressure_xishu  0.620462298860544  fval maibobo_max_y
+%       x2=fzero(fun2,[x_index*1.1])                   %,three_value(length(maibobo_PlotX))   %maibobo_PlotX(length(maibobo_PlotX))
+%    end
+   
+   plot(x1(1),0.55*temp4,'+k',x2(1),0.75*temp3,'+k')   ;
+ 
+   %fzero这个函数的求值还有问题，得到的值不是按照方向在走
+   
+%     Systolic_pressure_xishu
+%     Diastolic_pressure_xishu
+    guaidianNum   ；
+%    
+%    x1(1)
+%    x2(1)
+%    
+%    Systolic_pressure_X_index
+%    Diastolic_pressure_X_index
+   
+%   maibobo_x(Systolic_pressure_X_index)
+%   maibobo_x(Diastolic_pressure_X_index)
+   if(((x1(1)-max_x+1)>length(yali_y))||((x2(1)-max_x+1)>length(yali_y)))
+       
+       Forecast_Systolic_pressure  =0;
+       
+       Forecast_Diastolic_pressure =0;
+       
+       return;
+       
+   end
+       
+   Forecast_Systolic_pressure   =   round(yali_y(round(x1(1)-max_x+1))) ;%+80    %round(yali_y(round(x1(1)-max_x-length(yali_y_front)+1)))
+   
+   Forecast_Diastolic_pressure  =  round(yali_y(round(x2(1)-max_x+1))); %+50   %round(yali_y(round(x2(1)-max_x-length(yali_y_front)+1)))
+%    Forecast_Systolic_pressure= A(round(x1(1)))
+%    Forecast_Diastolic_pressure= A(round(x2(1)))
+
+   
+  
+ 
+%     polyval函数代入系数后，乘以纵坐标的值代入方程f，求f的横坐标
+%    t值有好几对，要找到最正确的那一对，然后对应起来。
+   
+
+
+%已经将整个血压计的测量大的流程调通了，然后解决一些问题，确定合适的方法，将系数调整好，就可以了，
+%王卓只做到了滤波的分离，这一块我和他讨论过，明白了他的思想，然后我自己实现了。他的vb程序不好读，第二个是我用更加简便的方式实现了。我做了包络线，然后做了
+
+%1.脉搏波的数据不好，自己的血压计是否能够好一些
+%2.脉搏波的包络线，要找到更好的方法进行拟合，现在是用三次函数拟合的，影响到最高点的选取，影响到系数的确定。
+%3.最高点用拟合的值和最高点用实际的值的区别
+%4.通过多测量数据，基于数据统计，选则合适的方法，得到合适的系数。
+%5.matlab2012code 进行转化为c代码。
+%6.查阅相关的文档，现在的目标是基于我们自己的血压计调整相应的系数，通过这个系数得到血压值。
+%7.脚踝的还是太遥远，先要将上臂的系数确定后，然后得到下臂的血压，还有脉搏波的时间差，才可以求得脉搏波的ABI和PWV的值。
+
+% fzero会造成向左找根的情况两个解决方案，换一个起始的点，第二个解决办法，先前的那些点都不要，还是从第一个开始
